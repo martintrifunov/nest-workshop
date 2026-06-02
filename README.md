@@ -31,6 +31,34 @@
 $ npm install
 ```
 
+## PostgreSQL setup
+
+1. Start PostgreSQL with Docker Compose:
+
+```bash
+$ docker compose up -d
+```
+
+2. Copy environment variables:
+
+```bash
+$ cp .env.example .env
+```
+
+3. Start the app:
+
+```bash
+$ npm run start:dev
+```
+
+The application will connect to PostgreSQL using these environment variables:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
 ## Compile and run the project
 
 ```bash
