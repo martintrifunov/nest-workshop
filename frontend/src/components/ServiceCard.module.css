@@ -1,0 +1,44 @@
+.card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+  background: #fff;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.name {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a202c;
+}
+
+.url {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: #718096;
+  font-family: monospace;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.auth {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.open {
+  background: #c6f6d5;
+  color: #276749;
+}
