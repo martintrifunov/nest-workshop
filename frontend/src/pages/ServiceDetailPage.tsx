@@ -6,7 +6,7 @@ import gatewayClient from '../api/gatewayClient';
 import { DataTable } from '../components/DataTable';
 import { EditServiceModal } from '../components/EditServiceModal';
 import { useAuth } from '../hooks/useAuth';
-import { GatewayService } from '../types';
+import { GatewayService, RequestLog } from '../types';
 import styles from './ServiceDetailPage.module.css';
 
 export function ServiceDetailPage() {
@@ -30,6 +30,13 @@ export function ServiceDetailPage() {
       ),
     enabled: !!service,
     staleTime: 30_000,
+  });
+
+  const { data: logs = [] } = useQuery<RequestLog[]>({
+    queryKey: ['service-logs', name],
+    queryFn: () => nestClient.get(`/services/${name}/logs`).then((r) => r.data),
+    enabled: !!service,
+    refetchInterval: 5_000,
   });
 
   const deleteMutation = useMutation({
@@ -70,6 +77,42 @@ export function ServiceDetailPage() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Live data via gateway</h2>
         <DataTable data={(proxyData ?? []) as Record<string, unknown>[]} />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Request log</h2>
+        {logs.length === 0 ? (
+          <p className={styles.noLogs}>No requests logged yet — hit the gateway to see entries.</p>
+        ) : (
+          <table className={styles.logTable}>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Status</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => {
+                const statusClass =
+                  log.statusCode < 300 ? styles.logStatus2xx
+                  : log.statusCode < 500 ? styles.logStatus4xx
+                  : styles.logStatus5xx;
+                return (
+                  <tr key={log.id}>
+                    <td>{new Date(log.createdAt).toLocaleTimeString()}</td>
+                    <td>{log.method}</td>
+                    <td style={{ fontFamily: 'monospace' }}>{log.path}</td>
+                    <td className={statusClass}>{log.statusCode}</td>
+                    <td>{log.durationMs} ms</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
 
       {showEdit && (

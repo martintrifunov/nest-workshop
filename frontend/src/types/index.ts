@@ -23,3 +23,13 @@ export interface AuthUser {
   sub: number;
   role: 'admin' | 'developer';
 }
+
+export interface RequestLog {
+  id: number;
+  serviceName: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  createdAt: string;
+}

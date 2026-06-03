@@ -23,6 +23,27 @@ export function EditServiceModal({ service, onSave, onClose }: Props) {
 
   const removeField = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
 
+  const handleSpecFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        const incoming: FieldSpec[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.fields)
+          ? parsed.fields
+          : [];
+        setFields(incoming);
+      } catch {
+        alert('Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({ baseUrl, routePattern, responseFormat, authRequired, spec: { fields } });
@@ -64,7 +85,13 @@ export function EditServiceModal({ service, onSave, onClose }: Props) {
           <div className={styles.specSection}>
             <div className={styles.specHeader}>
               <span className={styles.specTitle}>Field mappings</span>
-              <button type="button" className={styles.addRow} onClick={addField}>+ Add</button>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <label className={styles.addRow} style={{ cursor: 'pointer' }}>
+                  Import JSON
+                  <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleSpecFile} />
+                </label>
+                <button type="button" className={styles.addRow} onClick={addField}>+ Add</button>
+              </div>
             </div>
             {fields.length > 0 && (
               <div className={styles.fieldGrid}>

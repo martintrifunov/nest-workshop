@@ -74,3 +74,35 @@
 .status {
   color: #718096;
 }
+
+.logTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.logTable th,
+.logTable td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.logTable th {
+  color: #718096;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+}
+
+.logStatus2xx { color: #38a169; font-weight: 600; }
+.logStatus4xx { color: #dd6b20; font-weight: 600; }
+.logStatus5xx { color: #e53e3e; font-weight: 600; }
+
+.noLogs {
+  font-size: 0.8rem;
+  color: #a0aec0;
+  font-style: italic;
+  margin: 0.5rem 0 0;
+}
