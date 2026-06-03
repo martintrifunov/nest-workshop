@@ -26,6 +26,11 @@ export class GatewayController {
     return this.gatewayService.findAll();
   }
 
+  @Get(':name/logs')
+  getLogs(@Param('name') name: string) {
+    return this.gatewayService.getLogs(name);
+  }
+
   @Get(':name')
   findOne(@Param('name') name: string) {
     return this.gatewayService.findOne(name);

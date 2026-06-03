@@ -60,4 +60,16 @@ export class GatewayService {
       throw err;
     }
   }
+
+  async getLogs(name: string) {
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get(`${this.baseUrl}/admin/services/${name}/logs`),
+      );
+      return data;
+    } catch (err: any) {
+      if (err.response?.status === 404) throw new NotFoundException(`Service "${name}" not found`);
+      throw err;
+    }
+  }
 }
