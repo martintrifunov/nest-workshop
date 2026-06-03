@@ -31,6 +31,7 @@ export class UsersService implements OnModuleInit {
         return {
             id: savedUser.id,
             username: savedUser.username,
+            role: savedUser.role,
         };
     }
 
@@ -48,10 +49,12 @@ export class UsersService implements OnModuleInit {
             this.usersRepository.create({
                 username: 'john',
                 password: await hash('changeme', 10),
+                role: 'developer',
             }),
             this.usersRepository.create({
                 username: 'maria',
                 password: await hash('guess', 10),
+                role: 'admin',
             }),
         ]);
 
