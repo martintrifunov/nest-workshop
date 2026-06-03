@@ -36,6 +36,7 @@ export function ServiceDetailPage() {
     queryKey: ['service-logs', name],
     queryFn: () => nestClient.get(`/services/${name}/logs`).then((r) => r.data),
     enabled: !!service,
+    staleTime: 5_000,
     refetchInterval: 5_000,
   });
 
@@ -102,7 +103,9 @@ export function ServiceDetailPage() {
                   : styles.logStatus5xx;
                 return (
                   <tr key={log.id}>
-                    <td>{new Date(log.createdAt).toLocaleTimeString()}</td>
+                    <td title={new Date(log.createdAt).toLocaleString()}>
+                      {new Date(log.createdAt).toLocaleTimeString()}
+                    </td>
                     <td>{log.method}</td>
                     <td style={{ fontFamily: 'monospace' }}>{log.path}</td>
                     <td className={statusClass}>{log.statusCode}</td>

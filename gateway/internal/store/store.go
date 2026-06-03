@@ -3,13 +3,14 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 
 	"zoo-gateway/internal/models"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 // Store wraps a *sql.DB and an in-memory route table used for zero-lock-wait
@@ -21,26 +22,17 @@ type Store struct {
 	routeTable map[string]models.Service
 }
 
-// New opens and pings the database, retrying up to maxRetries times.
-func New(dsn string, maxRetries int) (*Store, error) {
+// New opens and pings the database once. The caller is responsible for
+// retrying with a delay between attempts (see connectDB in main.go).
+func New(dsn string) (*Store, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-
-	for i := 1; i <= maxRetries; i++ {
-		if err = db.Ping(); err == nil {
-			break
-		}
-		log.Printf("store: waiting for postgres (%d/%d): %v", i, maxRetries, err)
-		if i == maxRetries {
-			return nil, fmt.Errorf("db not ready after %d attempts: %w", maxRetries, err)
-		}
-		// caller sleeps between retries via a ticker; we just return the error
-		// here so the retry loop in main keeps full control of timing.
+	if err = db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
-
 	return &Store{db: db, routeTable: make(map[string]models.Service)}, nil
 }
 
@@ -169,6 +161,9 @@ func (s *Store) Create(svc models.Service) (models.Service, error) {
 	`, svc.Name, svc.BaseURL, svc.ResponseFormat, svc.RoutePattern, svc.AuthRequired, specJSON,
 	).Scan(&svc.ID)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return svc, ErrConflict
+		}
 		return svc, fmt.Errorf("create insert: %w", err)
 	}
 	return svc, nil
@@ -263,6 +258,19 @@ func (s *Store) Delete(name string) error {
 
 // ErrNotFound is returned when a requested service does not exist.
 var ErrNotFound = fmt.Errorf("service not found")
+
+// ErrConflict is returned when a service name is already registered.
+var ErrConflict = fmt.Errorf("service name already exists")
+
+// isUniqueViolation reports whether err is a PostgreSQL unique-constraint
+// violation (error code 23505).
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "23505"
+	}
+	return false
+}
 
 // --- Request logging ---
 

@@ -10,11 +10,22 @@ const exhibits = [
   { id: 4, name: 'Aquatic World', theme: 'Ocean', capacity: 200, animals: 'sharks, dolphins, octopus' },
 ];
 
+let nextId = exhibits.length + 1;
+
+function escapeXml(val) {
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function toXml(items) {
   const rows = items
     .map(
       (e) =>
-        `  <exhibit>\n    <id>${e.id}</id>\n    <name>${e.name}</name>\n    <theme>${e.theme}</theme>\n    <capacity>${e.capacity}</capacity>\n    <animals>${e.animals}</animals>\n  </exhibit>`,
+        `  <exhibit>\n    <id>${escapeXml(e.id)}</id>\n    <name>${escapeXml(e.name)}</name>\n    <theme>${escapeXml(e.theme)}</theme>\n    <capacity>${escapeXml(e.capacity)}</capacity>\n    <animals>${escapeXml(e.animals)}</animals>\n  </exhibit>`,
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<exhibits>\n${rows}\n</exhibits>`;
@@ -33,7 +44,7 @@ app.get('/:id', (req, res) => {
 });
 
 app.post('/', (req, res) => {
-  const exhibit = { id: exhibits.length + 1, ...req.body };
+  const exhibit = { id: nextId++, ...req.body };
   exhibits.push(exhibit);
   res.status(201).type('application/xml').send(toXml([exhibit]));
 });

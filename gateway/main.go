@@ -70,11 +70,11 @@ func buildRouter(s *store.Store, cfg *config) chi.Router {
 	return r
 }
 
-// connectDB retries opening/pinging the database up to maxRetries times with
-// a 2-second delay between attempts.
+// connectDB retries calling store.New up to maxRetries times with a 2-second
+// delay between attempts.
 func connectDB(dsn string, maxRetries int) (*store.Store, error) {
 	for i := 1; i <= maxRetries; i++ {
-		s, err := store.New(dsn, 1)
+		s, err := store.New(dsn)
 		if err == nil {
 			return s, nil
 		}

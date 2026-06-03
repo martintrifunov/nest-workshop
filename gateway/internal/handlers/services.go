@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"zoo-gateway/internal/models"
@@ -29,11 +30,15 @@ func (h *Services) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := h.store.Create(svc)
-	if err != nil {
-		writeError(w, http.StatusConflict, err.Error())
+	if errors.Is(err, store.ErrConflict) {
+		writeError(w, http.StatusConflict, "a service with that name already exists")
 		return
 	}
-	h.store.Rebuild() //nolint:errcheck
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rebuildOrLog(h.store)
 
 	writeJSON(w, http.StatusCreated, created)
 }
@@ -82,7 +87,7 @@ func (h *Services) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.store.Rebuild() //nolint:errcheck
+	rebuildOrLog(h.store)
 
 	writeJSON(w, http.StatusOK, updated)
 }
@@ -98,7 +103,7 @@ func (h *Services) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.store.Rebuild() //nolint:errcheck
+	rebuildOrLog(h.store)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -116,6 +121,14 @@ func (h *Services) GetLogs(w http.ResponseWriter, r *http.Request) {
 // Health returns a simple liveness response.
 func Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// rebuildOrLog calls Rebuild and logs any error rather than silently dropping
+// it. Route-table staleness is a real operational issue, so it must be visible.
+func rebuildOrLog(s *store.Store) {
+	if err := s.Rebuild(); err != nil {
+		log.Printf("handlers: rebuild route table: %v", err)
+	}
 }
 
 // --- HTTP helpers shared within the handlers package ---
