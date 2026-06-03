@@ -2,11 +2,15 @@ package proxy
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"zoo-gateway/internal/models"
 	"zoo-gateway/internal/store"
@@ -51,12 +55,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	upstreamURL := h.buildUpstreamURL(svc.BaseURL, chi.URLParam(r, "*"))
 
-	resp, err := http.Get(upstreamURL) //nolint:noctx // simple proxy, no timeout required here
+	start := time.Now()
+	resp, err := http.Get(upstreamURL) //nolint:noctx
+	durationMs := int(time.Since(start).Milliseconds())
+
 	if err != nil {
+		go h.logRequest(svc.Name, r, http.StatusBadGateway, durationMs)
 		writeError(w, http.StatusBadGateway, "upstream unreachable")
 		return
 	}
 	defer resp.Body.Close()
+
+	go h.logRequest(svc.Name, r, resp.StatusCode, durationMs)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -64,13 +74,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := normalise(body, svc.Spec)
+	result, err := normalise(body, svc.ResponseFormat, svc.Spec)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "normalisation error")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) logRequest(serviceName string, r *http.Request, statusCode, durationMs int) {
+	if err := h.store.LogRequest(models.RequestLog{
+		ServiceName: serviceName,
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		StatusCode:  statusCode,
+		DurationMs:  durationMs,
+	}); err != nil {
+		log.Printf("proxy: log request: %v", err)
+	}
 }
 
 // enforceJWT validates the Bearer token in the Authorization header.
@@ -125,17 +147,68 @@ func (h *Handler) resolveLocalhost(rawURL string) string {
 
 // --- Response normalisation ---
 
-// normalise parses raw JSON and applies field-mapping rules from spec.
-// If spec has no fields the raw value is returned unchanged.
-func normalise(data []byte, spec models.Spec) (any, error) {
+// normalise parses raw response bytes according to responseFormat and applies
+// field-mapping rules from spec. If spec has no fields the raw value is
+// returned unchanged.
+func normalise(data []byte, responseFormat string, spec models.Spec) (any, error) {
 	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
+	var err error
+	if responseFormat == "xml" {
+		raw, err = parseXML(data)
+	} else {
+		err = json.Unmarshal(data, &raw)
+	}
+	if err != nil {
 		return nil, err
 	}
 	if len(spec.Fields) == 0 {
 		return raw, nil
 	}
 	return applySpec(raw, spec), nil
+}
+
+// --- XML parsing ---
+
+// xmlNode is a generic container used to decode arbitrary XML trees.
+type xmlNode struct {
+	XMLName  xml.Name
+	Content  string    `xml:",chardata"`
+	Children []xmlNode `xml:",any"`
+}
+
+// parseXML converts raw XML bytes into a Go value suitable for spec processing.
+// Root elements whose children all share a single tag name are treated as arrays.
+func parseXML(data []byte) (any, error) {
+	var root xmlNode
+	if err := xml.Unmarshal(data, &root); err != nil {
+		return nil, err
+	}
+	return nodeToAny(root), nil
+}
+
+func nodeToAny(n xmlNode) any {
+	if len(n.Children) == 0 {
+		return strings.TrimSpace(n.Content)
+	}
+	// Count distinct child tag names.
+	tagCounts := make(map[string]int, len(n.Children))
+	for _, c := range n.Children {
+		tagCounts[c.XMLName.Local]++
+	}
+	// Single distinct tag → array (handles both single and multiple items).
+	if len(tagCounts) == 1 {
+		arr := make([]any, 0, len(n.Children))
+		for _, c := range n.Children {
+			arr = append(arr, nodeToAny(c))
+		}
+		return arr
+	}
+	// Multiple distinct tags → object.
+	m := make(map[string]any, len(n.Children))
+	for _, c := range n.Children {
+		m[c.XMLName.Local] = nodeToAny(c)
+	}
+	return m
 }
 
 func applySpec(raw any, spec models.Spec) any {
@@ -166,10 +239,19 @@ func mapFields(src map[string]any, fields []models.FieldSpec) map[string]any {
 }
 
 func coerce(v any, typ string) any {
-	if typ == "string" {
+	switch typ {
+	case "string":
 		return fmt.Sprintf("%v", v)
+	case "number":
+		if s, ok := v.(string); ok {
+			if n, err := strconv.ParseFloat(s, 64); err == nil {
+				return n
+			}
+		}
+		return v
+	default:
+		return v
 	}
-	return v
 }
 
 // --- HTTP helpers ---

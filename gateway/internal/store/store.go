@@ -47,7 +47,8 @@ func New(dsn string, maxRetries int) (*Store, error) {
 // Close releases the underlying database connection.
 func (s *Store) Close() error { return s.db.Close() }
 
-// Migrate creates the gateway_services table if it does not already exist.
+// Migrate creates the gateway_services and request_logs tables if they do not
+// already exist.
 func (s *Store) Migrate() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS gateway_services (
@@ -58,6 +59,20 @@ func (s *Store) Migrate() error {
 			route_pattern   TEXT NOT NULL,
 			auth_required   BOOLEAN NOT NULL DEFAULT TRUE,
 			spec            JSONB NOT NULL
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS request_logs (
+			id           SERIAL PRIMARY KEY,
+			service_name TEXT NOT NULL,
+			method       TEXT NOT NULL,
+			path         TEXT NOT NULL,
+			status_code  INT NOT NULL,
+			duration_ms  INT NOT NULL,
+			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`)
 	return err
@@ -248,3 +263,47 @@ func (s *Store) Delete(name string) error {
 
 // ErrNotFound is returned when a requested service does not exist.
 var ErrNotFound = fmt.Errorf("service not found")
+
+// --- Request logging ---
+
+// LogRequest inserts a request log entry. Errors are non-fatal; callers
+// should fire this in a goroutine and log any returned error.
+func (s *Store) LogRequest(entry models.RequestLog) error {
+	_, err := s.db.Exec(`
+		INSERT INTO request_logs (service_name, method, path, status_code, duration_ms)
+		VALUES ($1, $2, $3, $4, $5)
+	`, entry.ServiceName, entry.Method, entry.Path, entry.StatusCode, entry.DurationMs)
+	return err
+}
+
+// GetLogs returns the most recent limit log entries for the named service,
+// newest first.
+func (s *Store) GetLogs(serviceName string, limit int) ([]models.RequestLog, error) {
+	rows, err := s.db.Query(`
+		SELECT id, service_name, method, path, status_code, duration_ms, created_at
+		FROM request_logs
+		WHERE service_name = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, serviceName, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get logs: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []models.RequestLog
+	for rows.Next() {
+		var l models.RequestLog
+		if err := rows.Scan(
+			&l.ID, &l.ServiceName, &l.Method, &l.Path,
+			&l.StatusCode, &l.DurationMs, &l.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("get logs scan: %w", err)
+		}
+		logs = append(logs, l)
+	}
+	if logs == nil {
+		logs = []models.RequestLog{}
+	}
+	return logs, rows.Err()
+}

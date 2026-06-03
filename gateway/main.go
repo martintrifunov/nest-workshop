@@ -57,6 +57,7 @@ func buildRouter(s *store.Store, cfg *config) chi.Router {
 	r.Route("/admin/services", func(r chi.Router) {
 		r.Get("/", svcHandler.List)
 		r.Post("/", svcHandler.Create)
+		r.Get("/{name}/logs", svcHandler.GetLogs)
 		r.Get("/{name}", svcHandler.Get)
 		r.Put("/{name}", svcHandler.Update)
 		r.Delete("/{name}", svcHandler.Delete)
@@ -96,6 +97,7 @@ type config struct {
 	SeedAnimalsURL     string
 	SeedEmployeesURL   string
 	SeedScheduleURL    string
+	SeedExhibitsURL    string
 }
 
 func loadConfig() *config {
@@ -111,6 +113,7 @@ func loadConfig() *config {
 		SeedAnimalsURL:     env("SEED_ANIMALS_URL", ""),
 		SeedEmployeesURL:   env("SEED_EMPLOYEES_URL", ""),
 		SeedScheduleURL:    env("SEED_SCHEDULE_URL", ""),
+		SeedExhibitsURL:    env("SEED_EXHIBITS_URL", ""),
 	}
 }
 
@@ -129,6 +132,8 @@ func (c *config) seeds() []models.Service {
 			RoutePattern: "employees", AuthRequired: true, Spec: models.Spec{Fields: []models.FieldSpec{}}},
 		{Name: "schedule", BaseURL: c.SeedScheduleURL, ResponseFormat: "json",
 			RoutePattern: "schedule", AuthRequired: true, Spec: models.Spec{Fields: []models.FieldSpec{}}},
+		{Name: "exhibits", BaseURL: c.SeedExhibitsURL, ResponseFormat: "xml",
+			RoutePattern: "exhibits", AuthRequired: true, Spec: models.Spec{Fields: []models.FieldSpec{}}},
 	}
 }
 

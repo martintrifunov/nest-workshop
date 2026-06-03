@@ -103,6 +103,16 @@ func (h *Services) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Services) GetLogs(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	logs, err := h.store.GetLogs(name, 100)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, logs)
+}
+
 // Health returns a simple liveness response.
 func Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
